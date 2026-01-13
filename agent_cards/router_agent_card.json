@@ -1,0 +1,69 @@
+{
+  "name": "Multi-Agent Router",
+  "description": "A multi-agent coordinator that routes requests to specialized agents for weather information and mathematical calculations.",
+  "url": "http://localhost:8000/",
+  "version": "1.0.0",
+  "documentationUrl": "https://github.com/your-org/xllm",
+  "provider": {
+    "organization": "XLLM Multi-Agent System"
+  },
+  "authentication": {
+    "schemes": []
+  },
+  "defaultInputModes": ["text"],
+  "defaultOutputModes": ["text"],
+  "capabilities": {
+    "streaming": true,
+    "pushNotifications": false,
+    "stateTransitionHistory": true
+  },
+  "skills": [
+    {
+      "id": "weather_query",
+      "name": "Weather Information",
+      "description": "Get current weather conditions, temperature, humidity, and wind speed for any location worldwide.",
+      "tags": ["weather", "temperature", "climate", "forecast"],
+      "examples": [
+        "What's the weather in Tokyo?",
+        "Is it raining in London?",
+        "Temperature in New York",
+        "Weather conditions in Paris"
+      ]
+    },
+    {
+      "id": "math_calculation",
+      "name": "Mathematical Calculations",
+      "description": "Perform arithmetic calculations, trigonometry, logarithms, and algebraic expressions.",
+      "tags": ["math", "calculate", "arithmetic", "algebra"],
+      "examples": [
+        "Calculate 25 * 4 + 10",
+        "What is sqrt(144)?",
+        "Compute sin(45) in radians",
+        "What's 15% of 200?"
+      ]
+    },
+    {
+      "id": "unit_conversion",
+      "name": "Unit Conversions",
+      "description": "Convert between units of length (km, miles, feet), temperature (C, F, K), and weight (kg, lbs).",
+      "tags": ["convert", "units", "length", "temperature", "weight"],
+      "examples": [
+        "Convert 100 km to miles",
+        "What's 32 Fahrenheit in Celsius?",
+        "Convert 150 pounds to kilograms"
+      ]
+    },
+    {
+      "id": "general_chat",
+      "name": "General Conversation",
+      "description": "Handle greetings, capability questions, and general conversational queries.",
+      "tags": ["chat", "help", "greeting"],
+      "examples": [
+        "Hello!",
+        "What can you do?",
+        "Help me understand your capabilities"
+      ]
+    }
+  ],
+  "supportsAuthenticatedExtendedCard": false
+}

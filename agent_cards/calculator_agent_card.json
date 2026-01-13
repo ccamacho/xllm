@@ -1,0 +1,68 @@
+{
+  "name": "Calculator Agent",
+  "description": "A specialized agent that performs mathematical calculations including basic arithmetic, trigonometry, logarithms, unit conversions, and percentage calculations.",
+  "url": "http://localhost:8002/",
+  "version": "1.0.0",
+  "documentationUrl": "https://github.com/your-org/xllm",
+  "provider": {
+    "organization": "XLLM Multi-Agent System"
+  },
+  "authentication": {
+    "schemes": []
+  },
+  "defaultInputModes": ["text"],
+  "defaultOutputModes": ["text"],
+  "capabilities": {
+    "streaming": true,
+    "pushNotifications": false,
+    "stateTransitionHistory": true
+  },
+  "skills": [
+    {
+      "id": "calculate",
+      "name": "Mathematical Expression Evaluation",
+      "description": "Evaluate mathematical expressions including arithmetic operations (+, -, *, /, **, %), square roots, trigonometric functions (sin, cos, tan), logarithms, and exponentials.",
+      "tags": ["math", "calculate", "arithmetic", "algebra", "trigonometry", "logarithm"],
+      "examples": [
+        "Calculate 25 * 4 + 10",
+        "What is sqrt(144)?",
+        "Compute 2**10",
+        "Calculate sin(3.14159/2)",
+        "What's log(100)?",
+        "Evaluate (15 + 25) * 3"
+      ],
+      "inputModes": ["text"],
+      "outputModes": ["text"]
+    },
+    {
+      "id": "convert_units",
+      "name": "Unit Conversion",
+      "description": "Convert between various units: length (meters, kilometers, miles, feet, inches), temperature (celsius, fahrenheit, kelvin), and weight (kilograms, pounds, grams, ounces).",
+      "tags": ["convert", "units", "length", "temperature", "weight", "metric", "imperial"],
+      "examples": [
+        "Convert 100 kilometers to miles",
+        "What's 32 fahrenheit in celsius?",
+        "Convert 150 pounds to kilograms",
+        "How many feet in 10 meters?",
+        "Convert 100 celsius to kelvin"
+      ],
+      "inputModes": ["text"],
+      "outputModes": ["text"]
+    },
+    {
+      "id": "calculate_percentage",
+      "name": "Percentage Calculations",
+      "description": "Calculate percentages of numbers, find what percentage one number is of another, and compute percentage increases or decreases.",
+      "tags": ["percentage", "percent", "ratio", "proportion"],
+      "examples": [
+        "What is 15% of 200?",
+        "Calculate 25% of 1000",
+        "What percentage is 50 of 200?",
+        "Find 7.5% of 500"
+      ],
+      "inputModes": ["text"],
+      "outputModes": ["text"]
+    }
+  ],
+  "supportsAuthenticatedExtendedCard": false
+}

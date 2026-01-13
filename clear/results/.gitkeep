@@ -1,0 +1,2 @@
+# This file ensures the clear/results/ directory is tracked by git
+# All result files are ignored - see .gitignore

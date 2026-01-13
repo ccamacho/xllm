@@ -1,0 +1,82 @@
+# =============================================================================
+# CLEAR Configuration for Multi-Agent System Evaluation
+# =============================================================================
+# 
+# This configuration evaluates traces from our ADK multi-agent system using
+# IBM's CLEAR (Comprehensive LLM Error Analysis and Reporting) framework.
+#
+# CLEAR provides:
+# - LLM-as-a-Judge evaluation of each agent response
+# - Automatic identification of recurring error patterns
+# - Interactive dashboard for exploring issues
+#
+# Usage:
+#   1. Run analysis: run-clear-eval-analysis --provider google --data-path clear/traces/clear_langfuse_traces.csv --output-dir clear/results
+#   2. View dashboard: run-clear-eval-dashboard
+#   3. Upload the .zip file from clear/results/ to the dashboard
+#
+# See: https://github.com/IBM/CLEAR
+# =============================================================================
+
+# Provider Configuration
+# Supported: google, openai, watsonx, rits, azure
+provider: google
+
+provider_defaults:
+  google:
+    # Gemini is Google's model family
+    gen_model_name: gemini-2.0-flash
+    eval_model_name: gemini-2.0-flash
+    max_workers: 10
+  openai:
+    gen_model_name: gpt-4o-mini
+    eval_model_name: gpt-4o
+    max_workers: 10
+
+# Run Configuration
+run_name: multi_agent_traces
+
+# Data paths (relative to project root)
+data_path: "clear/traces/clear_langfuse_traces.csv"
+output_dir: "clear/results/"
+
+# Generation settings (disabled - we already have agent responses)
+perform_generation: false
+
+# Evaluation settings
+is_reference_based: false  # No ground truth for agent responses
+resume_enabled: true
+agent_mode: true  # Use agentic evaluation criteria
+success_threshold: 0.85
+
+# Task type
+task: general
+
+# Column mappings
+model_output_column: response
+model_input_column: model_input
+qid_column: id
+
+# Additional columns to include in dashboard
+input_columns:
+  - trace_name
+  - tools_used
+  - query_type
+  - method
+  - latency_ms
+
+# Analysis settings
+use_full_text_for_analysis: false
+max_shortcomings: 15
+min_shortcomings: 3
+max_eval_text_for_synthesis: 500
+
+# Custom evaluation criteria for multi-agent systems
+# These override the default criteria when agent_mode is true
+evaluation_criteria:
+  Tool Selection: "Did the agent select the appropriate tool(s) for the user's request? Weather queries should use weather tools, math queries should use calculator tools."
+  Response Accuracy: "Is the final response factually correct, complete, and addresses the user's question?"
+  Routing Logic: "For the router agent: was the request correctly delegated to the appropriate sub-agent (weather_agent vs calculator_agent)?"
+  Error Handling: "Does the response handle edge cases, invalid inputs, or errors gracefully?"
+  Response Clarity: "Is the response clear, well-structured, conversational, and helpful to the user?"
+  Tool Usage Efficiency: "Did the agent use tools efficiently without unnecessary calls or redundant operations?"

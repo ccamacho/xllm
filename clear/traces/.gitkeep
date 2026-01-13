@@ -1,0 +1,2 @@
+# This file ensures the clear/traces/ directory is tracked by git
+# Trace files (*.csv, *.json) are ignored - see .gitignore
