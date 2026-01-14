@@ -1,2 +1,0 @@
-# This file ensures the traces/ directory is tracked by git
-# Trace files (*.json) are ignored - see .gitignore

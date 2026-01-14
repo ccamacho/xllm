@@ -1,189 +1,154 @@
-# Multi-Agent System with Google ADK
+# Multi-Agent System with Google ADK & A2A Protocol
 
-A multi-agent system built with [Google ADK](https://google.github.io/adk-docs/) featuring weather and calculator agents, with full observability via Langfuse and evaluation via IBM CLEAR.
+A distributed multi-agent system using [Google's Agent Development Kit (ADK)](https://google.github.io/adk-docs/) and the [A2A Protocol](https://a2a-protocol.org/) for agent-to-agent communication.
 
-## Quick Setup
+## Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                      Router Agent (port 8000)                    │
+│                                                                  │
+│  Uses RemoteA2aAgent - NO tools, only sub_agents                │
+│  Routes queries to appropriate specialist agent                  │
+└────────────────────────┬────────────────────────────────────────┘
+                         │ A2A Protocol (HTTP/JSON-RPC)
+          ┌──────────────┴──────────────┐
+          ▼                             ▼
+┌─────────────────────┐     ┌─────────────────────┐
+│ Weather Agent       │     │ Calculator Agent    │
+│ (port 8001)         │     │ (port 8002)         │
+│                     │     │                     │
+│ Tools:              │     │ Tools:              │
+│ - get_weather()     │     │ - calculate()       │
+│                     │     │ - convert_units()   │
+│                     │     │ - calculate_percent │
+└─────────────────────┘     └─────────────────────┘
+```
+
+## Quick Start
+
+### 1. Install Dependencies
 
 ```bash
-# Create virtual environment
-python -m venv .venv
-source .venv/bin/activate
-
-# Install dependencies
 pip install -r requirements.txt
-pip install -e CLEAR/
-
-# Configure API keys in .env
-cp .env.example .env
-# Edit .env with your keys
 ```
 
-**Required API Keys:**
-- `GOOGLE_API_KEY` - [Get from Google AI Studio](https://aistudio.google.com/app/apikey)
-- `LANGFUSE_PUBLIC_KEY` / `LANGFUSE_SECRET_KEY` - [Get from Langfuse](https://cloud.langfuse.com)
+### 2. Configure Environment
 
----
-
-## 1. Running ADK Agents (Same Process)
-
-All agents run together in one Python process with automatic routing:
+Create `.env` file:
 
 ```bash
-# Interactive mode
-python test_agents_adk.py
+# Required
+GOOGLE_API_KEY=your_gemini_api_key
 
-# Demo mode
-python test_agents_adk.py --demo
-
-# Single query
-python test_agents_adk.py --query "What's the weather in Tokyo?"
+# Optional: Langfuse tracing
+LANGFUSE_PUBLIC_KEY=pk-lf-...
+LANGFUSE_SECRET_KEY=sk-lf-...
+LANGFUSE_BASE_URL=https://cloud.langfuse.com
 ```
 
-**Architecture:**
-```
-┌─────────────────────────────────────────┐
-│              Router Agent               │
-│    (LLM decides which agent to use)     │
-└─────────────┬───────────────┬───────────┘
-              │               │
-    ┌─────────▼─────┐  ┌──────▼──────┐
-    │ Weather Agent │  │ Calculator  │
-    │  get_weather  │  │  calculate  │
-    └───────────────┘  └─────────────┘
-```
-
----
-
-## 2. Running A2A Agents (Separate Processes)
-
-Expose agents as HTTP services using the [A2A Protocol](https://a2a-protocol.org/):
+### 3. Start Agents (Each in Separate Terminal)
 
 ```bash
-# Terminal 1: Start the router agent
-python a2a_server.py --port 8000
+# Terminal 1: Weather Agent
+python a2a_server.py --agent weather --port 8001
 
-# Terminal 2: Test with the client (also creates Langfuse traces)
-python test_agents_a2a.py
+# Terminal 2: Calculator Agent
+python a2a_server.py --agent calculator --port 8002
 
-# Or test with curl
-curl http://localhost:8000/.well-known/agent-card.json
+# Terminal 3: Router Agent (requires agents above)
+python a2a_server.py --agent router --port 8000
 ```
 
-**Why A2A?** Other frameworks (LangChain, AutoGen, CrewAI) can discover and call your agents over HTTP.
-
-**Tracing:** Both server and client create Langfuse traces, so you can evaluate A2A interactions with CLEAR.
-
----
-
-## 3. Tracing with Langfuse
-
-All agent runs are automatically traced to Langfuse when credentials are configured.
-
-**What's captured:**
-- Full conversation flow
-- Tool calls and responses
-- Token usage and latency
-- Query classification tags
-
-**View traces:** https://cloud.langfuse.com/traces
-
-**Local storage:**
-```bash
-# Traces are also saved locally as JSON
-ls traces/
-
-# Export from Langfuse to CSV for CLEAR
-python langfuse_export_traces.py
-```
-
----
-
-## 4. Evaluating with CLEAR
-
-[IBM CLEAR](https://github.com/IBM/CLEAR) provides LLM-as-a-Judge evaluation using Gemini models.
-
-### Workflow
-
-```
-1. Run agents          2. Export traces         3. Run CLEAR           4. View dashboard
-   (ADK or A2A)    →      from Langfuse      →      evaluation      →      results
-   
-test_agents_adk.py  langfuse_export_       run-clear-eval-        run-clear-eval-
-test_agents_a2a.py  traces.py              analysis ...           dashboard
-```
-
-### Step-by-Step
+### 4. Test the System
 
 ```bash
-# 1. Run agents (both methods send traces to Langfuse)
-python test_agents_adk.py --demo      # ADK method (same process)
-# OR
-python a2a_server.py --port 8000 &    # Start A2A server first
-python test_agents_a2a.py             # A2A method (HTTP client)
+# Terminal 4: Run demo
+python test_agents_a2a.py --url http://localhost:8000
 
-# 2. Export ALL traces from Langfuse to CSV for CLEAR
-#    (includes traces from both ADK and A2A runs)
+# Or interactive mode
+python test_agents_a2a.py --interactive
+```
+
+## Key Components
+
+### Router Agent (`agents/router_agent.py`)
+
+Uses `RemoteA2aAgent` for true A2A communication - **no tools**, only sub-agents:
+
+```python
+from google.adk.agents.remote_a2a_agent import RemoteA2aAgent
+
+weather_remote = RemoteA2aAgent(
+    name="weather_agent",
+    agent_card="http://localhost:8001/.well-known/agent-card.json",
+)
+
+router_agent = Agent(
+    name="router_agent",
+    sub_agents=[weather_remote, calculator_remote],  # NO tools!
+)
+```
+
+### Specialist Agents
+
+Each agent has its own tools and runs as an independent A2A server:
+
+- **Weather Agent** (`agents/weather_agent.py`): `get_weather()` tool
+- **Calculator Agent** (`agents/calculator_agent.py`): `calculate()`, `convert_units()`, `calculate_percentage()` tools
+
+## Tracing with Langfuse
+
+All A2A servers auto-capture traces via `GoogleADKInstrumentor`:
+
+```python
+from openinference.instrumentation.google_adk import GoogleADKInstrumentor
+GoogleADKInstrumentor().instrument()
+```
+
+Traces are sent to Langfuse via OTLP. View at: https://cloud.langfuse.com
+
+## IBM CLEAR Evaluation
+
+Export traces and evaluate with LLM-as-a-Judge:
+
+```bash
+# Export traces from Langfuse to CSV
 python langfuse_export_traces.py --limit 100
 
-# 3. Run CLEAR evaluation with Gemini
+# Run CLEAR evaluation
 run-clear-eval-analysis \
   --provider google \
   --data-path clear/traces/clear_langfuse_traces.csv \
   --output-dir clear/results \
   --agent-mode True
 
-# 4. View results in dashboard
+# View dashboard
 run-clear-eval-dashboard --port 8501
-# Upload: clear/results/*.zip
 ```
-
-### Evaluation Criteria
-
-CLEAR evaluates each agent response on:
-- **Tool Selection** - Did it pick the right tool?
-- **Response Accuracy** - Is the answer correct?
-- **Routing Logic** - Was delegation appropriate?
-- **Error Handling** - Are edge cases handled?
-- **Response Clarity** - Is it clear and helpful?
-
----
 
 ## Project Structure
 
 ```
 xllm/
-├── agents/                 # Agent definitions
-│   ├── agent.py            # Router agent (main entry)
-│   ├── weather_agent.py    # Weather tools
-│   └── calculator_agent.py # Math tools
-├── langfuse_tracing.py     # Shared Langfuse utilities
+├── agents/
+│   ├── __init__.py
+│   ├── router_agent.py     # Router using RemoteA2aAgent (no tools)
+│   ├── weather_agent.py    # Weather agent with tools
+│   └── calculator_agent.py # Calculator agent with tools
+├── a2a_server.py           # A2A HTTP server for any agent
+├── test_agents_a2a.py      # A2A client for testing
 ├── langfuse_export_traces.py # Export traces for CLEAR
-├── test_agents_adk.py      # Test via ADK (same process)
-├── test_agents_a2a.py      # Test via A2A protocol (HTTP)
-├── a2a_server.py           # A2A HTTP server
-├── main.py                 # Basic CLI runner
-├── traces/                 # Local trace JSONs
-├── clear/                  # CLEAR evaluation
-│   ├── traces/             # Input CSVs
-│   └── results/            # Output analysis
-└── CLEAR/                  # IBM CLEAR (with Google provider)
+├── clear/                  # CLEAR evaluation assets
+│   ├── traces/
+│   └── results/
+└── CLEAR/                  # IBM CLEAR repository
 ```
-
-### Shared Tracing Module
-
-`langfuse_tracing.py` provides shared utilities used by both test scripts:
-
-- `setup_langfuse()` - Initialize Langfuse client
-- `classify_query()` - Auto-tag queries (weather, calculation, etc.)
-- `save_trace_locally()` - Save traces to local JSON files
-
-`langfuse_export_traces.py` is a standalone script that exports traces from Langfuse to CSV for CLEAR evaluation.
-
----
 
 ## Resources
 
 - [Google ADK Docs](https://google.github.io/adk-docs/)
 - [A2A Protocol](https://a2a-protocol.org/)
+- [RemoteA2aAgent](https://google.github.io/adk-docs/agents/remote-a2a-agent/)
 - [Langfuse](https://langfuse.com/docs)
 - [IBM CLEAR](https://github.com/IBM/CLEAR)

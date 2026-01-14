@@ -1,171 +1,153 @@
 """
-A2A Server - Expose Multi-Agent System via A2A Protocol
+A2A Server - Expose ADK agents via A2A Protocol (HTTP)
 
-This module exposes our ADK agents as A2A-compliant HTTP servers,
-enabling external agents (from any framework) to discover and 
-communicate with our Weather and Calculator agents.
+This server exposes agents as A2A-compatible HTTP services.
+Each agent should run on its own port for true distributed A2A.
 
-A2A Protocol Features:
-- Agent Cards: Discoverable at /.well-known/agent-card.json
-- JSON-RPC 2.0: Standard communication protocol
-- Task Management: Create, progress, and complete tasks
-- Streaming: Real-time response streaming support
-- Langfuse Tracing: Full observability via OpenTelemetry
+Architecture:
+    python a2a_server.py --agent router --port 8000      # Router (supervisor)
+    python a2a_server.py --agent weather --port 8001     # Weather agent
+    python a2a_server.py --agent calculator --port 8002  # Calculator agent
 
-Usage:
-    # Start the router agent (includes all capabilities)
-    python a2a_server.py
-
-    # Or start individual specialized agents
-    python a2a_server.py --agent weather --port 8001
-    python a2a_server.py --agent calculator --port 8002
-    python a2a_server.py --agent router --port 8000
-
-    # Test agent discovery
-    curl http://localhost:8000/.well-known/agent-card.json
-
-External Communication:
-    Other A2A-compatible agents can now discover and call your agents:
-    - From LangChain agents
-    - From AutoGen agents
-    - From CrewAI agents
-    - From any A2A-compliant framework
+The router agent uses RemoteA2aAgent to communicate with weather/calculator
+agents running on their respective ports.
 """
 
 import os
-import sys
 import argparse
 from dotenv import load_dotenv
 
-# Load environment variables
 load_dotenv()
 
+# Parse arguments early to get agent name for service name
+# We need to do this before instrumentation to set the correct service name
+def parse_args_early():
+    """Parse only the --agent argument early for service name configuration."""
+    parser = argparse.ArgumentParser(add_help=False)
+    parser.add_argument("--agent", "-a", choices=["router", "weather", "calculator"], default="router")
+    parser.add_argument("--port", "-p", type=int, default=8000)
+    args, _ = parser.parse_known_args()
+    return args
 
-def setup_langfuse_tracing():
+# Get agent name early for service name
+_early_args = parse_args_early()
+_service_name = f"a2a-{_early_args.agent}"
+
+# Set service name in environment (OpenTelemetry will pick this up)
+os.environ["OTEL_SERVICE_NAME"] = _service_name
+
+# Note: All agents use the same Langfuse project (same API keys)
+# Traces are separated by service.name and agent.name attributes for filtering
+# You can filter in Langfuse UI by: service.name = "a2a-router" | "a2a-weather" | "a2a-calculator"
+
+# Configure tracing - must be done before importing agents
+# Follow SPEOL pattern: GoogleADKInstrumentor + langfuse.get_client()
+# GoogleADKInstrumentor automatically captures all ADK agent activity via OpenTelemetry
+# langfuse.get_client() configures the OTLP exporter to send traces to Langfuse
+from openinference.instrumentation.google_adk import GoogleADKInstrumentor
+from langfuse import get_client
+from opentelemetry.sdk.resources import Resource
+
+# Configure OpenTelemetry Resource with service name and agent metadata
+# These attributes allow filtering traces in Langfuse UI by agent
+resource = Resource.create({
+    "service.name": _service_name,  # Filter by: a2a-router, a2a-weather, a2a-calculator
+    "service.type": "a2a-agent",
+    "agent.name": _early_args.agent,  # Filter by: router, weather, calculator
+    "agent.port": str(_early_args.port),
+})
+
+# Instrument ADK first (creates OpenTelemetry spans)
+GoogleADKInstrumentor().instrument(resource=resource)
+
+# Get Langfuse client (configures OTLP exporter automatically when env vars are set)
+langfuse = get_client()
+
+# Verify connection - handle connection errors gracefully
+try:
+    if langfuse and langfuse.auth_check():
+        print("[OK] Langfuse tracing enabled")
+        print(f"     Dashboard: {os.getenv('LANGFUSE_BASE_URL', 'https://cloud.langfuse.com')}")
+        print(f"     Service: {_service_name} (filter by this in Langfuse UI)")
+        print(f"     Agent: {_early_args.agent} (also filterable)")
+        print(f"     All agents share the same project - filter by service.name or agent.name")
+    else:
+        print("[WARN] Langfuse authentication failed. Running without tracing.")
+        langfuse = None
+except Exception as e:
+    print(f"[WARN] Langfuse connection failed: {e}")
+    print("       Continuing without Langfuse monitoring...")
+    langfuse = None
+
+
+def get_agent(agent_name: str):
     """
-    Setup Langfuse tracing via OpenTelemetry for A2A requests.
-    This enables trace capture for all agent invocations.
-    """
-    langfuse_public_key = os.getenv("LANGFUSE_PUBLIC_KEY")
-    langfuse_secret_key = os.getenv("LANGFUSE_SECRET_KEY")
-    langfuse_host = os.getenv("LANGFUSE_HOST", "https://cloud.langfuse.com")
+    Load the specified agent by name.
     
-    if not langfuse_public_key or not langfuse_secret_key:
-        print("[WARN] Langfuse credentials not found - tracing disabled")
-        print("       Set LANGFUSE_PUBLIC_KEY and LANGFUSE_SECRET_KEY in .env")
-        return False
-    
-    try:
-        from opentelemetry import trace
-        from opentelemetry.sdk.trace import TracerProvider
-        from opentelemetry.sdk.trace.export import BatchSpanProcessor
-        from opentelemetry.sdk.resources import Resource
+    Args:
+        agent_name: One of 'router', 'weather', 'calculator'
         
-        # Try to use Langfuse's OTEL exporter if available
-        try:
-            from langfuse.opentelemetry import LangfuseSpanProcessor
-            
-            # Configure OpenTelemetry with Langfuse
-            resource = Resource.create({
-                "service.name": "a2a-multi-agent",
-                "langfuse.environment": os.getenv("LANGFUSE_ENVIRONMENT", "development"),
-            })
-            
-            provider = TracerProvider(resource=resource)
-            provider.add_span_processor(LangfuseSpanProcessor())
-            trace.set_tracer_provider(provider)
-            
-            print("[OK] Langfuse tracing enabled via OpenTelemetry")
-            return True
-            
-        except ImportError:
-            # Fallback to direct Langfuse SDK
-            from langfuse import Langfuse
-            
-            # Initialize Langfuse client for manual instrumentation
-            global langfuse_client
-            langfuse_client = Langfuse(
-                public_key=langfuse_public_key,
-                secret_key=langfuse_secret_key,
-                host=langfuse_host,
-            )
-            print("[OK] Langfuse tracing enabled (SDK mode)")
-            return True
-            
-    except ImportError as e:
-        print(f"[WARN] Langfuse/OpenTelemetry not available: {e}")
-        return False
-
-
-# Global Langfuse client (set if SDK mode is used)
-langfuse_client = None
-
-
-def create_router_a2a_server(port: int = 8000):
+    Returns:
+        The ADK Agent instance
     """
-    Create A2A server for the main router agent.
-    This agent handles all requests and can use weather/calculator tools.
+    if agent_name == "router":
+        from agents.router_agent import router_agent
+        return router_agent
+    elif agent_name == "weather":
+        from agents.weather_agent import weather_agent
+        return weather_agent
+    elif agent_name == "calculator":
+        from agents.calculator_agent import calculator_agent
+        return calculator_agent
+    else:
+        raise ValueError(f"Unknown agent: {agent_name}. Choose from: router, weather, calculator")
+
+
+def create_a2a_app(agent_name: str, port: int):
+    """
+    Create an A2A-compatible Starlette application for the specified agent.
+    
+    Args:
+        agent_name: Name of the agent to expose
+        port: Port number for agent card URL
+        
+    Returns:
+        Starlette application
     """
     from google.adk.a2a.utils.agent_to_a2a import to_a2a
-    from agents.agent import root_agent
     
-    print(f"[INFO] Starting Router Agent A2A Server on port {port}")
-    print(f"   Agent Card: http://localhost:{port}/.well-known/agent-card.json")
-    print(f"   Skills: Weather queries, Math calculations, General chat")
+    agent = get_agent(agent_name)
     
-    return to_a2a(root_agent, port=port)
+    print(f"\n[INFO] Creating A2A server for: {agent.name}")
+    print(f"       Description: {agent.description[:80]}...")
+    
+    # Wrap the ADK agent with A2A protocol support
+    # GoogleADKInstrumentor automatically captures all traces via OpenTelemetry
+    a2a_app = to_a2a(agent, port=port)
+    
+    return a2a_app
 
 
-def create_weather_a2a_server(port: int = 8001):
-    """
-    Create A2A server for the specialized Weather agent.
-    Exposes only weather-related capabilities.
-    """
-    from google.adk.a2a.utils.agent_to_a2a import to_a2a
-    from agents.weather_agent import weather_agent
-    
-    print(f"Starting Weather Agent A2A Server on port {port}")
-    print(f"   Agent Card: http://localhost:{port}/.well-known/agent-card.json")
-    print(f"   Skills: Current weather, Temperature, Forecasts")
-    
-    return to_a2a(weather_agent, port=port)
-
-
-def create_calculator_a2a_server(port: int = 8002):
-    """
-    Create A2A server for the specialized Calculator agent.
-    Exposes only math-related capabilities.
-    """
-    from google.adk.a2a.utils.agent_to_a2a import to_a2a
-    from agents.calculator_agent import calculator_agent
-    
-    print(f"[INFO] Starting Calculator Agent A2A Server on port {port}")
-    print(f"   Agent Card: http://localhost:{port}/.well-known/agent-card.json")
-    print(f"   Skills: Arithmetic, Unit conversions, Percentages")
-    
-    return to_a2a(calculator_agent, port=port)
-
-
-def run_server(app, host: str = "0.0.0.0", port: int = 8000):
-    """Run the A2A server using uvicorn."""
+def run_server(app, host: str, port: int, agent_name: str):
+    """Run the A2A server with uvicorn."""
     import uvicorn
     
     print(f"\n{'='*60}")
-    print("A2A Server Ready!")
+    print(f"A2A Server Ready: {agent_name}")
     print(f"{'='*60}")
     print(f"\n[INFO] Server: http://{host}:{port}")
     print(f"[INFO] Agent Card: http://localhost:{port}/.well-known/agent-card.json")
     print(f"\n[TIP] Test with curl:")
     print(f"      curl http://localhost:{port}/.well-known/agent-card.json")
-    print(f"\n[INFO] A2A Protocol: https://a2a-protocol.org/")
-    print(f"{'='*60}\n")
     
-    # to_a2a returns a Starlette app directly (or A2AStarletteApplication)
-    # Handle both cases
-    if hasattr(app, 'build'):
-        uvicorn.run(app.build(), host=host, port=port)
-    else:
-        uvicorn.run(app, host=host, port=port)
+    if agent_name == "router":
+        print(f"\n[IMPORTANT] Router requires sub-agents to be running:")
+        print(f"            python a2a_server.py --agent weather --port 8001")
+        print(f"            python a2a_server.py --agent calculator --port 8002")
+    
+    print(f"\n{'='*60}\n")
+    
+    uvicorn.run(app, host=host, port=port)
 
 
 def main():
@@ -174,65 +156,48 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  # Start the main router agent (recommended)
+  # Start all agents (run each in a separate terminal):
+  
+  # Terminal 1: Weather agent on port 8001
+  python a2a_server.py --agent weather --port 8001
+  
+  # Terminal 2: Calculator agent on port 8002
+  python a2a_server.py --agent calculator --port 8002
+  
+  # Terminal 3: Router agent on port 8000 (requires agents above)
   python a2a_server.py --agent router --port 8000
-
-  # Start all agents on different ports
-  python a2a_server.py --agent router --port 8000 &
-  python a2a_server.py --agent weather --port 8001 &
-  python a2a_server.py --agent calculator --port 8002 &
-
-  # Test agent discovery
-  curl http://localhost:8000/.well-known/agent-card.json
-
-  # Test with A2A client
-  python test_a2a_client.py
+  
+  # Terminal 4: Test the system
+  python test_agents_a2a.py --url http://localhost:8000
         """
     )
     
     parser.add_argument(
-        "--agent",
+        "--agent", "-a",
         choices=["router", "weather", "calculator"],
         default="router",
-        help="Which agent to expose via A2A (default: router)"
+        help="Agent to expose (default: router)"
     )
     
     parser.add_argument(
-        "--port",
+        "--port", "-p",
         type=int,
         default=8000,
-        help="Port to run the A2A server on (default: 8000)"
+        help="Port to run on (default: 8000)"
     )
     
     parser.add_argument(
         "--host",
         default="0.0.0.0",
-        help="Host to bind the server to (default: 0.0.0.0)"
+        help="Host to bind to (default: 0.0.0.0)"
     )
     
     args = parser.parse_args()
     
-    # Verify API key is set
-    if not os.getenv("GOOGLE_API_KEY"):
-        print("[ERROR] GOOGLE_API_KEY not set in .env file")
-        print("        Please add your Gemini API key to the .env file")
-        sys.exit(1)
-    
-    # Setup Langfuse tracing
-    tracing_enabled = setup_langfuse_tracing()
-    
-    # Create and run the appropriate server
-    if args.agent == "router":
-        app = create_router_a2a_server(port=args.port)
-    elif args.agent == "weather":
-        app = create_weather_a2a_server(port=args.port)
-    elif args.agent == "calculator":
-        app = create_calculator_a2a_server(port=args.port)
-    else:
-        print(f"[ERROR] Unknown agent: {args.agent}")
-        sys.exit(1)
-    
-    run_server(app, host=args.host, port=args.port)
+    # Service name was already set during early parsing
+    # Create and run the A2A app
+    app = create_a2a_app(args.agent, args.port)
+    run_server(app, args.host, args.port, args.agent)
 
 
 if __name__ == "__main__":

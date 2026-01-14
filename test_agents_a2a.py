@@ -1,13 +1,13 @@
+#!/usr/bin/env python3
 """
 Test Agents via A2A Protocol (HTTP)
 
-Run agents via A2A protocol over HTTP (separate processes).
-All traces are sent to Langfuse for comparison with ADK method.
+A2A client for testing agents running as independent HTTP services.
+Server-side tracing is handled by GoogleADKInstrumentor in a2a_server.py.
 
 Usage:
-    # First, start the A2A server:
-    python a2a_server.py --port 8000
-
+    # First, start the A2A servers (see README.md)
+    
     # Then run this client:
     python test_agents_a2a.py              # Run demo queries
     python test_agents_a2a.py --interactive # Interactive mode
@@ -18,10 +18,8 @@ import asyncio
 import argparse
 import json
 import time
+import uuid
 import httpx
-
-# Import shared tracing utilities
-import langfuse_tracing as lf
 
 
 async def get_agent_card(base_url: str) -> dict:
@@ -37,7 +35,7 @@ async def get_agent_card(base_url: str) -> dict:
         return response.json()
 
 
-async def send_message(base_url: str, message: str, session_id: str = None, trace: bool = True) -> dict:
+async def send_message(base_url: str, message: str, session_id: str = None) -> dict:
     """
     Send a message to an A2A agent using JSON-RPC 2.0.
     
@@ -47,7 +45,6 @@ async def send_message(base_url: str, message: str, session_id: str = None, trac
     - tasks/get: Get task status
     - tasks/cancel: Cancel a running task
     """
-    import uuid
     url = base_url.rstrip('/')  # Root endpoint for JSON-RPC
     
     payload = {
@@ -75,64 +72,10 @@ async def send_message(base_url: str, message: str, session_id: str = None, trac
     
     elapsed = time.time() - start_time
     
-    # Extract response text for tracing
-    response_text = ""
-    if "result" in result and "artifacts" in result["result"]:
-        for artifact in result["result"].get("artifacts", []):
-            for part in artifact.get("parts", []):
-                if "text" in part:
-                    response_text += part["text"]
-    
-    # Create Langfuse trace if enabled
-    if trace and lf.get_client() and lf.is_enabled():
-        try:
-            with lf.get_client().start_as_current_span(
-                name="a2a-client-call",
-                input={"query": message, "method": "a2a", "url": base_url},
-                metadata={"protocol": "a2a", "query_type": lf.classify_query(message)},
-            ) as span:
-                span.update(
-                    output={"response": response_text},
-                    metadata={
-                        "latency_ms": int(elapsed * 1000),
-                        "method": "a2a",
-                        "tags": ["a2a", "client", lf.classify_query(message)],
-                    },
-                )
-        except Exception:
-            pass  # Don't fail on tracing errors
+    # Add timing info to result
+    result["_latency_ms"] = int(elapsed * 1000)
     
     return result
-
-
-async def stream_message(base_url: str, message: str, session_id: str = None):
-    """
-    Send a message and receive streaming response.
-    Uses Server-Sent Events (SSE) for real-time updates.
-    """
-    url = f"{base_url}/a2a"
-    
-    payload = {
-        "jsonrpc": "2.0",
-        "id": 1,
-        "method": "tasks/sendSubscribe",
-        "params": {
-            "message": {
-                "role": "user",
-                "parts": [{"type": "text", "text": message}]
-            }
-        }
-    }
-    
-    if session_id:
-        payload["params"]["sessionId"] = session_id
-    
-    async with httpx.AsyncClient(timeout=120.0) as client:
-        async with client.stream("POST", url, json=payload) as response:
-            async for line in response.aiter_lines():
-                if line.startswith("data: "):
-                    data = json.loads(line[6:])
-                    yield data
 
 
 async def run_demo(base_url: str):
@@ -166,9 +109,6 @@ async def run_demo(base_url: str):
             for skill in agent_card['skills']:
                 print(f"     - {skill.get('name', 'Unknown')}: {skill.get('description', '')}")
         
-        print("\n[DEBUG] Full Agent Card:")
-        print(json.dumps(agent_card, indent=2))
-        
     except httpx.HTTPError as e:
         print(f"\n[ERROR] Failed to get agent card: {e}")
         print("        Make sure the A2A server is running:")
@@ -192,6 +132,7 @@ async def run_demo(base_url: str):
         
         try:
             response = await send_message(base_url, message)
+            latency = response.get("_latency_ms", 0)
             
             if "result" in response:
                 result = response["result"]
@@ -214,7 +155,9 @@ async def run_demo(base_url: str):
                 if "metadata" in result and "adk_usage_metadata" in result["metadata"]:
                     tokens = result["metadata"]["adk_usage_metadata"].get("totalTokenCount", 0)
                     print(f"   Tokens: {tokens}")
-                                
+                
+                print(f"   Latency: {latency}ms")
+                            
             elif "error" in response:
                 print(f"   [ERROR] {response['error']}")
                 
@@ -222,29 +165,6 @@ async def run_demo(base_url: str):
             print(f"   [ERROR] HTTP Error: {e}")
         except Exception as e:
             print(f"   [ERROR] {e}")
-    
-    # Step 3: Interactive mode hint
-    print("\n" + "-" * 40)
-    print("Interactive Mode")
-    print("-" * 40)
-    print("\nTo interact with the agent programmatically:")
-    print("""
-from test_a2a_client import send_message, get_agent_card
-import asyncio
-
-async def chat():
-    base_url = "http://localhost:8000"
-    
-    # Discover agent
-    card = await get_agent_card(base_url)
-    print(f"Talking to: {card['name']}")
-    
-    # Send message
-    response = await send_message(base_url, "What's 2+2?")
-    print(response)
-
-asyncio.run(chat())
-""")
     
     print("\n" + "=" * 60)
     print("Demo complete!")
@@ -289,25 +209,22 @@ async def interactive_mode(base_url: str):
 
 
 def main():
-    # Initialize Langfuse tracing
-    lf.setup_langfuse()
-    
     parser = argparse.ArgumentParser(
         description="A2A Client for testing multi-agent system",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
   # Run demo against router agent
-  python test_a2a_client.py
+  python test_agents_a2a.py
 
   # Test specific agent
-  python test_a2a_client.py --url http://localhost:8001
+  python test_agents_a2a.py --url http://localhost:8001
 
   # Interactive chat mode
-  python test_a2a_client.py --interactive
+  python test_agents_a2a.py --interactive
 
   # Just get agent card
-  python test_a2a_client.py --card-only
+  python test_agents_a2a.py --card-only
         """
     )
     
@@ -331,24 +248,18 @@ Examples:
     
     args = parser.parse_args()
     
-    try:
-        if args.card_only:
-            async def show_card():
-                try:
-                    card = await get_agent_card(args.url)
-                    print(json.dumps(card, indent=2))
-                except Exception as e:
-                    print(f"[ERROR] {e}")
-            asyncio.run(show_card())
-        elif args.interactive:
-            asyncio.run(interactive_mode(args.url))
-        else:
-            asyncio.run(run_demo(args.url))
-    finally:
-        # Flush traces to Langfuse
-        if lf.get_client() and lf.is_enabled():
-            lf.flush()
-            print("\n[OK] Traces sent to Langfuse")
+    if args.card_only:
+        async def show_card():
+            try:
+                card = await get_agent_card(args.url)
+                print(json.dumps(card, indent=2))
+            except Exception as e:
+                print(f"[ERROR] {e}")
+        asyncio.run(show_card())
+    elif args.interactive:
+        asyncio.run(interactive_mode(args.url))
+    else:
+        asyncio.run(run_demo(args.url))
 
 
 if __name__ == "__main__":
