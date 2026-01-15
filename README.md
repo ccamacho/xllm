@@ -5,24 +5,33 @@ A distributed multi-agent system using [Google's Agent Development Kit (ADK)](ht
 ## Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                      Router Agent (port 8000)                    │
-│                                                                  │
-│  Uses RemoteA2aAgent - NO tools, only sub_agents                │
-│  Routes queries to appropriate specialist agent                  │
-└────────────────────────┬────────────────────────────────────────┘
-                         │ A2A Protocol (HTTP/JSON-RPC)
-          ┌──────────────┴──────────────┐
-          ▼                             ▼
-┌─────────────────────┐     ┌─────────────────────┐
-│ Weather Agent       │     │ Calculator Agent    │
-│ (port 8001)         │     │ (port 8002)         │
-│                     │     │                     │
-│ Tools:              │     │ Tools:              │
-│ - get_weather()     │     │ - calculate()       │
-│                     │     │ - convert_units()   │
-│                     │     │ - calculate_percent │
-└─────────────────────┘     └─────────────────────┘
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         Router Agent (port 8000)                             │
+│                                                                              │
+│  Uses RemoteA2aAgent - NO tools, only sub_agents                            │
+│  Routes queries to appropriate specialist agent                              │
+└───────────────────────────────┬─────────────────────────────────────────────┘
+                                │ A2A Protocol (HTTP/JSON-RPC)
+             ┌──────────────────┴──────────────────┐
+             ▼                                     ▼
+┌─────────────────────────┐         ┌─────────────────────────────────────────┐
+│ Weather Agent           │         │ Calculator Agent (port 8002)            │
+│ (port 8001)             │         │                                         │
+│                         │         │ Tools:                                  │
+│ Tools:                  │         │ - basic_calculate()                     │
+│ - get_weather()         │         │ - convert_units()                       │
+│                         │         │ - calculate_percentage()                │
+└─────────────────────────┘         └────────────────┬────────────────────────┘
+                                                     │ Delegates advanced math
+                                                     ▼
+                                    ┌─────────────────────────────────────────┐
+                                    │ Advanced Calculator Agent (port 8003)   │
+                                    │                                         │
+                                    │ Tools:                                  │
+                                    │ - advanced_calculate()                  │
+                                    │   (sqrt, sin, cos, tan, log, exp,       │
+                                    │    factorial, chimichanga)              │
+                                    └─────────────────────────────────────────┘
 ```
 
 ## Quick Start
@@ -59,17 +68,20 @@ LANGFUSE_BASE_URL=https://cloud.langfuse.com
 # Terminal 1: Weather Agent
 uv run python a2a_server.py --agent weather --port 8001
 
-# Terminal 2: Calculator Agent
+# Terminal 2: Advanced Calculator Agent (must start before Calculator)
+uv run python a2a_server.py --agent advanced_calculator --port 8003
+
+# Terminal 3: Calculator Agent
 uv run python a2a_server.py --agent calculator --port 8002
 
-# Terminal 3: Router Agent (requires agents above)
+# Terminal 4: Router Agent (requires agents above)
 uv run python a2a_server.py --agent router --port 8000
 ```
 
 ### 4. Test the System
 
 ```bash
-# Terminal 4: Run demo
+# Terminal 5: Run demo
 uv run python test_agents_a2a.py --url http://localhost:8000
 
 # Or interactive mode
@@ -85,6 +97,7 @@ The Google ADK provides a web-based interface (`adk web`) for interactively test
 ```bash
 # First, start the remote agents (in separate terminals)
 uv run python a2a_server.py --agent weather --port 8001
+uv run python a2a_server.py --agent advanced_calculator --port 8003
 uv run python a2a_server.py --agent calculator --port 8002
 
 # Then launch adk web from the subagent directory
@@ -96,6 +109,7 @@ uv run adk web adk-web/subagent
 ```bash
 # First, start the remote agents (in separate terminals)
 uv run python a2a_server.py --agent weather --port 8001
+uv run python a2a_server.py --agent advanced_calculator --port 8003
 uv run python a2a_server.py --agent calculator --port 8002
 
 # Then launch adk web from the agent-as-tool directory
@@ -129,7 +143,24 @@ router_agent = Agent(
 Each agent has its own tools and runs as an independent A2A server:
 
 - **Weather Agent** (`agents/weather_agent.py`): `get_weather()` tool
-- **Calculator Agent** (`agents/calculator_agent.py`): `calculate()`, `convert_units()`, `calculate_percentage()` tools
+- **Calculator Agent** (`agents/calculator_agent.py`): `basic_calculate()`, `convert_units()`, `calculate_percentage()` tools. Delegates advanced math to the Advanced Calculator.
+- **Advanced Calculator Agent** (`agents/advanced_calculator_agent.py`): `advanced_calculate()` tool for sqrt, sin, cos, tan, log, exp, factorial, and custom operations like `chimichanga`
+
+#### Custom Operations
+
+The `chimichanga` function is a custom mathematical operation that multiplies any number by 3.75:
+
+```python
+# In advanced_calculator_agent.py
+safe_dict = {
+    "sqrt": math.sqrt,
+    "sin": math.sin,
+    # ...
+    "chimichanga": lambda x: x * 3.75,  # Custom operation
+}
+```
+
+Example: `chimichanga(7)` → `7 × 3.75 = 26.25`
 
 ## Tracing with Langfuse
 
@@ -204,26 +235,49 @@ run-clear-eval-analysis \
 
 ```
 xllm/
-├── pyproject.toml          # Project dependencies (uv)
+├── pyproject.toml              # Project dependencies (uv)
 ├── agents/
 │   ├── __init__.py
-│   ├── router_agent.py     # Router using RemoteA2aAgent (sub_agents mode)
-│   ├── router_agent_tool.py # Router using AgentTool (tools mode)
-│   ├── weather_agent.py    # Weather agent with tools
-│   └── calculator_agent.py # Calculator agent with tools
-├── adk-web/                # ADK Web interface configurations
-│   ├── subagent/           # Uses sub_agents for routing
-│   │   └── agent.py        # Exports root_agent for adk web
-│   └── agent-as-tool/      # Uses AgentTool for routing
-│       └── agent.py        # Exports root_agent for adk web
-├── a2a_server.py           # A2A HTTP server for any agent
-├── test_agents_a2a.py      # A2A client for testing
-├── langfuse_export_traces.py # Export traces for CLEAR
-├── clear/                  # CLEAR evaluation assets
+│   ├── router_agent.py         # Router using RemoteA2aAgent (sub_agents mode)
+│   ├── router_agent_tool.py    # Router using AgentTool (tools mode)
+│   ├── weather_agent.py        # Weather agent with tools
+│   ├── calculator_agent.py     # Calculator agent (delegates to advanced)
+│   └── advanced_calculator_agent.py  # Advanced math + custom operations
+├── adk-web/                    # ADK Web interface configurations
+│   ├── subagent/               # Uses sub_agents for routing
+│   │   └── agent.py
+│   └── agent-as-tool/          # Uses AgentTool for routing
+│       └── agent.py
+├── a2a_server.py               # A2A HTTP server for any agent
+├── test_agents_a2a.py          # A2A client for testing
+├── langfuse_export_traces.py   # Export traces for CLEAR
+├── langfuse_traces/            # Exported traces with documentation
+│   ├── all/                    # Complete trace exports (CSV + JSON + README)
+│   ├── 01_no_delegation_greeting/   # Router-only example
+│   └── 02_delegation_weather/       # Router → Weather delegation
+├── clear/                      # CLEAR evaluation assets
 │   ├── traces/
 │   └── results/
-└── CLEAR/                  # IBM CLEAR repository
+└── CLEAR-gemini/               # IBM CLEAR with Gemini support
 ```
+
+## Trace Documentation
+
+The `langfuse_traces/` folder contains exported traces with detailed documentation showing how queries flow through the multi-agent system:
+
+| Folder | Pattern | Example Query |
+|--------|---------|---------------|
+| `01_no_delegation_greeting/` | Router only | "Hello! What can you do?" |
+| `02_delegation_weather/` | Router → Weather | "What's the weather in Tokyo?" |
+
+Each folder contains:
+- `traces.csv` - The relevant traces for that example
+- `README.md` - Step-by-step explanation with trace IDs and flow diagrams
+
+The `all/` folder contains the complete trace export in both CSV and JSON formats, including documentation of all 7 example query types (greeting, weather, basic math, unit conversion, sqrt, trigonometry, and chimichanga). See `all/*_README.md` for:
+- Detailed flow diagrams for each delegation pattern
+- Trace ID correlation across agents
+- CSV vs JSON format comparison
 
 ## Resources
 
