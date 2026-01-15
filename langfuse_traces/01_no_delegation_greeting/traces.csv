@@ -1,2 +1,0 @@
-id,model_input,response,trace_name,latency_ms,timestamp
-77eb2b7914c97a4ca1512ca98f4ae95a,Hello! What can you do?,"I can route your requests to specialized agents. I can route weather-related queries to a weather agent and math/calculation queries to a calculator agent. What can I help you with?",router_agent,971,2026-01-15T08:55:47.169000+00:00
