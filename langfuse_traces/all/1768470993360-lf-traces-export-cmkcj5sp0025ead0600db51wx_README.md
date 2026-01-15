@@ -296,3 +296,68 @@ Traces for the same query share similar timestamps. Look for:
 ```
 
 The weather_agent trace ends ~800ms before router, showing the delegation overhead.
+
+---
+
+## CSV vs JSON Export Format Comparison
+
+This folder contains traces in two formats: CSV (`*-lf-traces-export-*.csv`) and JSON (`*-lf-traces-export-*.json`). Each format serves different purposes:
+
+### CSV Format (Simplified)
+
+| Field | Description |
+|-------|-------------|
+| `id` | Trace identifier |
+| `model_input` | The user query |
+| `response` | The agent's response |
+| `trace_name` | Agent name (router_agent, weather_agent, etc.) |
+| `latency_ms` | Processing time in milliseconds |
+| `timestamp` | When the trace occurred |
+
+**Best for:** CLEAR analysis, quick review, spreadsheet analysis, filtering by query/response content.
+
+### JSON Format (Complete)
+
+The JSON export includes all OpenTelemetry and Langfuse metadata:
+
+| Field | Description |
+|-------|-------------|
+| `id`, `timestamp`, `name` | Basic trace identification |
+| `userId`, `sessionId` | A2A session tracking (e.g., `A2A_USER_cef1ee76-c833-...`) |
+| `input`, `output` | Query/response (often `null` for protocol-level traces) |
+| `metadata.attributes` | Agent name, port, HTTP method/status |
+| `metadata.resourceAttributes` | OpenTelemetry SDK info |
+| `metadata.scope` | Instrumentation source (e.g., `openinference.instrumentation.google_adk`) |
+| `environment`, `tags`, `release`, `version` | Deployment metadata |
+
+**Key differences in JSON:**
+- Contains **all** traces including internal A2A protocol messages (many with `null` input/output)
+- Includes OpenTelemetry attributes like `service.name`, `http.method`, `http.url`
+- Shows the full instrumentation chain (`langfuse-sdk`, `a2a-python-sdk`, `openinference`)
+- Preserves session IDs for correlating traces across agents
+
+**Best for:** Debugging, full observability, understanding the complete A2A communication flow, building custom analysis pipelines.
+
+### Example: Same Trace in Both Formats
+
+**CSV row:**
+```
+77eb2b7914c97a4ca1512ca98f4ae95a,"Hello! What can you do?","I can route your requests...",router_agent,971,2026-01-15T08:55:47.169Z
+```
+
+**JSON object:**
+```json
+{
+  "id": "77eb2b7914c97a4ca1512ca98f4ae95a",
+  "timestamp": "2026-01-15T08:55:47.169Z",
+  "name": "a2a.server.request_handlers.jsonrpc_handler.JSONRPCHandler.on_message_send",
+  "userId": "A2A_USER_cef1ee76-c833-4526-ba4b-273420b6e448",
+  "sessionId": "cef1ee76-c833-4526-ba4b-273420b6e448",
+  "metadata": {
+    "resourceAttributes": "{\"service.name\":\"a2a-router\"}",
+    "scope": "{\"name\":\"openinference.instrumentation.google_adk\",\"version\":\"0.1.8\"}"
+  }
+}
+```
+
+The CSV export is curated for analysis (only meaningful query/response pairs), while JSON preserves the complete telemetry data including internal protocol traces.

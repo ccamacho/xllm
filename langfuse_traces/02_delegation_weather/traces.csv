@@ -1,0 +1,3 @@
+id,model_input,response,trace_name,latency_ms,timestamp
+68423b551dd9039a58648b8711bb25bc,What's the weather in Tokyo?,"The weather in Tokyo is currently being reported as having a temperature of 27 degrees Celsius with partly cloudy conditions. Humidity is at 78% and the wind speed is 3 m/s. This sounds like a warm and moderately humid day.",weather_agent,1827,2026-01-15T08:55:48.160000+00:00
+1fe33d35833c563f063bcd5f365aed5e,What's the weather in Tokyo?,"The weather in Tokyo is currently being reported as having a temperature of 27 degrees Celsius with partly cloudy conditions. Humidity is at 78% and the wind speed is 3 m/s. This sounds like a warm and moderately humid day.",weather_agent,991,2026-01-15T08:55:48.991000+00:00
