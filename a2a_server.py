@@ -24,7 +24,7 @@ load_dotenv()
 def parse_args_early():
     """Parse only the --agent argument early for service name configuration."""
     parser = argparse.ArgumentParser(add_help=False)
-    parser.add_argument("--agent", "-a", choices=["router", "weather", "calculator"], default="router")
+    parser.add_argument("--agent", "-a", choices=["router", "weather", "calculator", "advanced_calculator"], default="router")
     parser.add_argument("--port", "-p", type=int, default=8000)
     args, _ = parser.parse_known_args()
     return args
@@ -85,7 +85,7 @@ def get_agent(agent_name: str):
     Load the specified agent by name.
     
     Args:
-        agent_name: One of 'router', 'weather', 'calculator'
+        agent_name: One of 'router', 'weather', 'calculator', 'advanced_calculator'
         
     Returns:
         The ADK Agent instance
@@ -99,8 +99,11 @@ def get_agent(agent_name: str):
     elif agent_name == "calculator":
         from agents.calculator_agent import calculator_agent
         return calculator_agent
+    elif agent_name == "advanced_calculator":
+        from agents.advanced_calculator_agent import advanced_calculator_agent
+        return advanced_calculator_agent
     else:
-        raise ValueError(f"Unknown agent: {agent_name}. Choose from: router, weather, calculator")
+        raise ValueError(f"Unknown agent: {agent_name}. Choose from: router, weather, calculator, advanced_calculator")
 
 
 def create_a2a_app(agent_name: str, port: int):
@@ -161,11 +164,14 @@ Examples:
   # Terminal 1: Weather agent on port 8001
   python a2a_server.py --agent weather --port 8001
   
-  # Terminal 2: Calculator agent on port 8002
-  python a2a_server.py --agent calculator --port 8002
-  
-  # Terminal 3: Router agent on port 8000 (requires agents above)
-  python a2a_server.py --agent router --port 8000
+      # Terminal 2: Calculator agent on port 8002
+      python a2a_server.py --agent calculator --port 8002
+      
+      # Terminal 3: Advanced Calculator agent on port 8003
+      python a2a_server.py --agent advanced_calculator --port 8003
+      
+      # Terminal 4: Router agent on port 8000 (requires agents above)
+      python a2a_server.py --agent router --port 8000
   
   # Terminal 4: Test the system
   python test_agents_a2a.py --url http://localhost:8000
@@ -174,7 +180,7 @@ Examples:
     
     parser.add_argument(
         "--agent", "-a",
-        choices=["router", "weather", "calculator"],
+        choices=["router", "weather", "calculator", "advanced_calculator"],
         default="router",
         help="Agent to expose (default: router)"
     )

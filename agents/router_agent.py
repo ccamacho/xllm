@@ -54,12 +54,13 @@ AVAILABLE SUB-AGENTS:
    - "Will it be sunny tomorrow?"
 
 2. calculator_agent - Specializes in mathematical calculations and unit conversions
-   Keywords: calculate, compute, math, convert, percentage, sqrt, sum, add, multiply
+   Keywords: calculate, compute, math, convert, percentage, sqrt, sum, add, multiply, chimichanga
    Query patterns:
    - "Calculate 25 * 4 + 10"
    - "What is sqrt(144)?"
    - "Convert 100 km to miles"
    - "What is 15% of 200?"
+   - "Calculate chimichanga(7)"
 
 ROUTING RULES (in priority order):
 1. Weather queries (location, temperature, forecast) → delegate to weather_agent
