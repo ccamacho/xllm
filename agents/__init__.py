@@ -24,6 +24,7 @@ from .advanced_calculator_agent import advanced_calculator_agent, advanced_calcu
 
 # Router agent (with RemoteA2aAgent sub-agents, no tools)
 from .router_agent import router_agent
+from .router_agent_tool import router_agent_tool
 
 __all__ = [
     # Standalone agents
@@ -32,6 +33,7 @@ __all__ = [
     "advanced_calculator_agent",
     # Router agent (A2A mode)
     "router_agent",
+    "router_agent_tool",
     # Tools (for direct use if needed)
     "get_weather",
     "basic_calculate",
