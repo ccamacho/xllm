@@ -155,11 +155,50 @@ uv run run-clear-eval-analysis \
   --provider google \
   --data-path clear/traces/clear_langfuse_traces.csv \
   --output-dir clear/results \
-  --agent-mode True
+  --agent-mode True \
+  --perform-generation False
 
 # View dashboard
 uv run run-clear-eval-dashboard --port 8501
 ```
+
+### Understanding `--perform-generation`
+
+The `--perform-generation` flag controls whether CLEAR generates new responses or evaluates existing ones:
+
+| Mode | Command | Use Case |
+|------|---------|----------|
+| **Evaluate existing responses** | `--perform-generation False` | Evaluate your **actual agent outputs** from the `response` column in your CSV |
+| **Generate new responses** | `--perform-generation True` (default) | Have CLEAR's LLM generate responses to compare against or evaluate |
+
+#### When to use each mode:
+
+**`--perform-generation False`** (Recommended for agent evaluation)
+```bash
+run-clear-eval-analysis \
+  --provider google \
+  --data-path clear/traces/clear_langfuse_traces.csv \
+  --output-dir clear/results \
+  --agent-mode True \
+  --perform-generation False
+```
+- ✅ Evaluates your **actual agent responses** captured in traces
+- ✅ Identifies issues in your real system behavior
+- ✅ Required when your agents have custom tools/functions (like `chimichanga`)
+- Your CSV must have a `response` column with agent outputs
+
+**`--perform-generation True`** (Default)
+```bash
+run-clear-eval-analysis \
+  --provider google \
+  --data-path clear/traces/clear_langfuse_traces.csv \
+  --output-dir clear/results \
+  --agent-mode True \
+  --perform-generation True
+```
+- Uses CLEAR's LLM (e.g., Gemini) to generate new responses
+- ⚠️ The LLM won't know about your custom agent tools/functions
+- Useful for baseline comparisons or when you only have inputs (no responses)
 
 ## Project Structure
 
