@@ -238,7 +238,6 @@ xllm/
 ├── pyproject.toml              # Project dependencies (uv)
 ├── agents/
 │   ├── __init__.py
-<<<<<<< Updated upstream
 │   ├── router_agent.py         # Router using RemoteA2aAgent (sub_agents mode)
 │   ├── router_agent_tool.py    # Router using AgentTool (tools mode)
 │   ├── weather_agent.py        # Weather agent with tools
@@ -246,9 +245,9 @@ xllm/
 │   └── advanced_calculator_agent.py  # Advanced math + custom operations
 ├── adk-web/                    # ADK Web interface configurations
 │   ├── subagent/               # Uses sub_agents for routing
-│   │   └── agent.py
+│   │   └── agent.py            # Exports root_agent for adk web
 │   └── agent-as-tool/          # Uses AgentTool for routing
-│       └── agent.py
+│       └── agent.py            # Exports root_agent for adk web
 ├── a2a_server.py               # A2A HTTP server for any agent
 ├── test_agents_a2a.py          # A2A client for testing
 ├── langfuse_export_traces.py   # Export traces for CLEAR
@@ -257,21 +256,6 @@ xllm/
 │   ├── 01_no_delegation_greeting/   # Router-only example
 │   └── 02_delegation_weather/       # Router → Weather delegation
 ├── clear/                      # CLEAR evaluation assets
-=======
-│   ├── router_agent.py     # Router using RemoteA2aAgent (sub_agents mode)
-│   ├── router_agent_tool.py # Router using AgentTool (tools mode)
-│   ├── weather_agent.py    # Weather agent with tools
-│   └── calculator_agent.py # Calculator agent with tools
-├── adk-web/                # ADK Web interface configurations
-│   ├── subagent/           # Uses sub_agents for routing
-│   │   └── agent.py        # Exports root_agent for adk web
-│   └── agent_as_tool/      # Uses AgentTool for routing
-│       └── agent.py        # Exports root_agent for adk web
-├── a2a_server.py           # A2A HTTP server for any agent
-├── test_agents_a2a.py      # A2A client for testing
-├── langfuse_export_traces.py # Export traces for CLEAR
-├── clear/                  # CLEAR evaluation assets
->>>>>>> Stashed changes
 │   ├── traces/
 │   └── results/
 └── CLEAR-gemini/               # IBM CLEAR with Gemini support
