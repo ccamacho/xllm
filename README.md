@@ -70,6 +70,34 @@ python test_agents_a2a.py --url http://localhost:8000
 python test_agents_a2a.py --interactive
 ```
 
+### 5. Using ADK Web Interface (Optional)
+
+The Google ADK provides a web-based interface (`adk web`) for interactively testing agents. This project includes two configurations:
+
+**Option A: Subagent Mode** (uses `sub_agents` for routing)
+
+```bash
+# First, start the remote agents (in separate terminals)
+python a2a_server.py --agent weather --port 8001
+python a2a_server.py --agent calculator --port 8002
+
+# Then launch adk web from the subagent directory
+adk web adk-web/subagent
+```
+
+**Option B: Agent-as-Tool Mode** (uses `AgentTool` wrapper for routing)
+
+```bash
+# First, start the remote agents (in separate terminals)
+python a2a_server.py --agent weather --port 8001
+python a2a_server.py --agent calculator --port 8002
+
+# Then launch adk web from the agent-as-tool directory
+adk web adk-web/agent-as-tool
+```
+
+Once running, open `http://localhost:8000` in your browser to interact with the multi-agent system through a chat interface.
+
 ## Key Components
 
 ### Router Agent (`agents/router_agent.py`)
@@ -133,9 +161,15 @@ run-clear-eval-dashboard --port 8501
 xllm/
 ├── agents/
 │   ├── __init__.py
-│   ├── router_agent.py     # Router using RemoteA2aAgent (no tools)
+│   ├── router_agent.py     # Router using RemoteA2aAgent (sub_agents mode)
+│   ├── router_agent_tool.py # Router using AgentTool (tools mode)
 │   ├── weather_agent.py    # Weather agent with tools
 │   └── calculator_agent.py # Calculator agent with tools
+├── adk-web/                # ADK Web interface configurations
+│   ├── subagent/           # Uses sub_agents for routing
+│   │   └── agent.py        # Exports root_agent for adk web
+│   └── agent-as-tool/      # Uses AgentTool for routing
+│       └── agent.py        # Exports root_agent for adk web
 ├── a2a_server.py           # A2A HTTP server for any agent
 ├── test_agents_a2a.py      # A2A client for testing
 ├── langfuse_export_traces.py # Export traces for CLEAR
@@ -148,6 +182,7 @@ xllm/
 ## Resources
 
 - [Google ADK Docs](https://google.github.io/adk-docs/)
+- [ADK Web Interface](https://google.github.io/adk-docs/get-started/quickstart/#step-4-run-your-agent)
 - [A2A Protocol](https://a2a-protocol.org/)
 - [RemoteA2aAgent](https://google.github.io/adk-docs/agents/remote-a2a-agent/)
 - [Langfuse](https://langfuse.com/docs)
