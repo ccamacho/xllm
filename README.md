@@ -30,8 +30,14 @@ A distributed multi-agent system using [Google's Agent Development Kit (ADK)](ht
 ### 1. Install Dependencies
 
 ```bash
-pip install -r requirements.txt
+# Install uv if you don't have it
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# Install dependencies (creates .venv automatically)
+uv sync
 ```
+
+> **Note:** `uv sync` creates a virtual environment in `.venv/` and installs all dependencies there. Use `uv run` to execute commands within this environment, or activate it manually with `source .venv/bin/activate`.
 
 ### 2. Configure Environment
 
@@ -51,23 +57,23 @@ LANGFUSE_BASE_URL=https://cloud.langfuse.com
 
 ```bash
 # Terminal 1: Weather Agent
-python a2a_server.py --agent weather --port 8001
+uv run python a2a_server.py --agent weather --port 8001
 
 # Terminal 2: Calculator Agent
-python a2a_server.py --agent calculator --port 8002
+uv run python a2a_server.py --agent calculator --port 8002
 
 # Terminal 3: Router Agent (requires agents above)
-python a2a_server.py --agent router --port 8000
+uv run python a2a_server.py --agent router --port 8000
 ```
 
 ### 4. Test the System
 
 ```bash
 # Terminal 4: Run demo
-python test_agents_a2a.py --url http://localhost:8000
+uv run python test_agents_a2a.py --url http://localhost:8000
 
 # Or interactive mode
-python test_agents_a2a.py --interactive
+uv run python test_agents_a2a.py --interactive
 ```
 
 ### 5. Using ADK Web Interface (Optional)
@@ -78,22 +84,22 @@ The Google ADK provides a web-based interface (`adk web`) for interactively test
 
 ```bash
 # First, start the remote agents (in separate terminals)
-python a2a_server.py --agent weather --port 8001
-python a2a_server.py --agent calculator --port 8002
+uv run python a2a_server.py --agent weather --port 8001
+uv run python a2a_server.py --agent calculator --port 8002
 
 # Then launch adk web from the subagent directory
-adk web adk-web/subagent
+uv run adk web adk-web/subagent
 ```
 
 **Option B: Agent-as-Tool Mode** (uses `AgentTool` wrapper for routing)
 
 ```bash
 # First, start the remote agents (in separate terminals)
-python a2a_server.py --agent weather --port 8001
-python a2a_server.py --agent calculator --port 8002
+uv run python a2a_server.py --agent weather --port 8001
+uv run python a2a_server.py --agent calculator --port 8002
 
 # Then launch adk web from the agent-as-tool directory
-adk web adk-web/agent-as-tool
+uv run adk web adk-web/agent-as-tool
 ```
 
 Once running, open `http://localhost:8000` in your browser to interact with the multi-agent system through a chat interface.
@@ -142,23 +148,24 @@ Export traces and evaluate with LLM-as-a-Judge:
 
 ```bash
 # Export traces from Langfuse to CSV
-python langfuse_export_traces.py --limit 100
+uv run python langfuse_export_traces.py --limit 100
 
 # Run CLEAR evaluation
-run-clear-eval-analysis \
+uv run run-clear-eval-analysis \
   --provider google \
   --data-path clear/traces/clear_langfuse_traces.csv \
   --output-dir clear/results \
   --agent-mode True
 
 # View dashboard
-run-clear-eval-dashboard --port 8501
+uv run run-clear-eval-dashboard --port 8501
 ```
 
 ## Project Structure
 
 ```
 xllm/
+├── pyproject.toml          # Project dependencies (uv)
 ├── agents/
 │   ├── __init__.py
 │   ├── router_agent.py     # Router using RemoteA2aAgent (sub_agents mode)
@@ -181,6 +188,7 @@ xllm/
 
 ## Resources
 
+- [uv - Python Package Manager](https://docs.astral.sh/uv/)
 - [Google ADK Docs](https://google.github.io/adk-docs/)
 - [ADK Web Interface](https://google.github.io/adk-docs/get-started/quickstart/#step-4-run-your-agent)
 - [A2A Protocol](https://a2a-protocol.org/)
