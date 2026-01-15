@@ -5,7 +5,8 @@ This package contains:
 
 Standalone Agents (run as independent A2A servers):
 - weather_agent: Gets weather information for locations
-- calculator_agent: Performs mathematical calculations
+- calculator_agent: Performs mathematical calculations (delegates advanced to sub-agent)
+- advanced_calculator_agent: Handles advanced mathematics (sqrt, sin, cos, log, etc.)
 
 Router Agent (uses RemoteA2aAgent for A2A communication):
 - router_agent: Routes requests to remote weather/calculator agents
@@ -13,11 +14,13 @@ Router Agent (uses RemoteA2aAgent for A2A communication):
 Architecture:
     Router (port 8000) ──A2A──> Weather Agent (port 8001)
                        ──A2A──> Calculator Agent (port 8002)
+                                    └──A2A──> Advanced Calculator (port 8003)
 """
 
 # Standalone agents (with tools)
 from .weather_agent import weather_agent, get_weather
-from .calculator_agent import calculator_agent, calculate, convert_units, calculate_percentage
+from .calculator_agent import calculator_agent, basic_calculate, convert_units, calculate_percentage
+from .advanced_calculator_agent import advanced_calculator_agent, advanced_calculate
 
 # Router agent (with RemoteA2aAgent sub-agents, no tools)
 from .router_agent import router_agent
@@ -26,11 +29,13 @@ __all__ = [
     # Standalone agents
     "weather_agent",
     "calculator_agent",
+    "advanced_calculator_agent",
     # Router agent (A2A mode)
     "router_agent",
     # Tools (for direct use if needed)
     "get_weather",
-    "calculate",
+    "basic_calculate",
     "convert_units",
     "calculate_percentage",
+    "advanced_calculate",
 ]

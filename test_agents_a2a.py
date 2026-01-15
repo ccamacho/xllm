@@ -125,6 +125,9 @@ async def run_demo(base_url: str):
         "What's the weather in Tokyo?",
         "Calculate 25 * 4 + 10",
         "Convert 100 kilometers to miles",
+        "What is the square root of 144?",
+        "Calculate sin(pi/2)",
+        "Calculate rampikichu(7)",
     ]
     
     for i, message in enumerate(test_messages, 1):
